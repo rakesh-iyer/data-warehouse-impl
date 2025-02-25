@@ -7,7 +7,7 @@ public class FieldReader {
     boolean optional;
     boolean repeated;
     String fieldName;
-    String fullyQualifiedFieldName;
+    String fullyQualifiedName;
     static FieldReader rootFieldReader;
     int definitionLevel;
     int fullDefinitionLevel;
@@ -28,7 +28,7 @@ public class FieldReader {
         return rootFieldReader;
     }
     FieldReader(RecordField recordField, String fieldName,
-                String fullyQualifiedFieldName, Class fieldType,
+                String fullyQualifiedName, Class fieldType,
                 int definitionLevel, int fullDefinitionLevel, boolean atomic,
                 boolean optional, boolean repeated) {
         this.recordField = recordField;
@@ -36,7 +36,7 @@ public class FieldReader {
         this.optional = optional;
         this.repeated = repeated;
         this.fieldName = fieldName;
-        this.fullyQualifiedFieldName = fullyQualifiedFieldName;
+        this.fullyQualifiedName = fullyQualifiedName;
         this.fieldType = fieldType;
         this.definitionLevel = definitionLevel;
         this.fullDefinitionLevel = fullDefinitionLevel;
@@ -50,7 +50,7 @@ public class FieldReader {
                 columnType = ColumnType.NORMAL;
             }
             this.column = ColumnDeserializer.columnFrom(fieldType,
-                    columnType, fullyQualifiedFieldName);
+                    columnType, fullyQualifiedName);
         }
     }
 
@@ -78,6 +78,16 @@ public class FieldReader {
         }
         Column.ColumnValue columnValue =
                 column.getColumnValue(columnValuePosition);
+        return columnValue.repetitionLevel;
+    }
+
+    int getNextRepetitionLevel() {
+        // Return 0 if the column value position is invalid.
+        if (!column.isValidPosition(columnValuePosition+1)) {
+            return 0;
+        }
+        Column.ColumnValue columnValue =
+                column.getColumnValue(columnValuePosition+1);
         return columnValue.repetitionLevel;
     }
 

@@ -12,6 +12,9 @@ public class RecordAssembler {
             return null;
         }
 
+        // The state machine hides all the complexities involved.
+        // We only use move to level algorithm.
+        // Its not clear if return to level is really necessary.
         while (reader.hasData()) {
             Object currentValue = reader.getDataAndMove();
             int nextRepetitionLevel = reader.getRepetitionLevel();

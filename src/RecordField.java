@@ -11,7 +11,7 @@ public class RecordField {
     Map<String, RecordField> subRecordFieldsMap = new LinkedHashMap<>();
     static RecordField rootRecordField;
     String fieldName;
-    String fullyQualifiedFieldName;
+    String fullyQualifiedName;
     boolean atomic;
     boolean optional;
     boolean repeated;
@@ -19,47 +19,87 @@ public class RecordField {
     Class fieldType;
     static List<RecordField> leafFields = new ArrayList<>();
     static List<FieldReader> leafFieldReaders = new ArrayList<>();
+    static final String fieldSeperator = "-";
+    Comparator<Object> comparator;
 
-    RecordField(String fieldName, String fullyQualifiedFieldName,
+    static class CharacterComparator implements Comparator<Object> {
+        public int compare(Object object1, Object object2) {
+            Character c1 = (Character)object1;
+            Character c2;
+            try {
+                c2 = Utils.parseCharacter((String)object2);
+            } catch (Exception e) {
+                c2 = null;
+            }
+            return c1.compareTo(c2);
+        }
+    }
+
+    static class IntegerComparator implements Comparator<Object> {
+        public int compare(Object object1, Object object2) {
+            Integer c1 = (Integer)object1;
+            Integer c2 = Integer.parseInt((String)object2);
+            return c1.compareTo(c2);
+        }
+    }
+
+    static class StringComparator implements Comparator<Object> {
+        public int compare(Object object1, Object object2) {
+            String c1 = (String)object1;
+            String c2 = (String)object2;
+            return c1.compareTo(c2);
+        }
+    }
+    RecordField(String fieldName, String fullyQualifiedName,
                 Class fieldType, int maxRepetitionLevel, int definitionLevel,
                 int fullDefinitionLevel, boolean atomic, boolean optional,
                 boolean repeated) {
         this.fieldName = fieldName;
-        this.fullyQualifiedFieldName = fullyQualifiedFieldName;
+        this.fullyQualifiedName = fullyQualifiedName;
         this.maxRepetitionLevel = maxRepetitionLevel;
         this.atomic = atomic;
         this.optional = optional;
         this.repeated = repeated;
         this.fieldType = fieldType;
         this.fieldReader = new FieldReader(this, fieldName,
-                fullyQualifiedFieldName, fieldType, definitionLevel,
+                fullyQualifiedName, fieldType, definitionLevel,
                 fullDefinitionLevel, /*atomic=*/true, optional, repeated);
+        if (atomic) {
+            if (fieldType == char.class) {
+                this.comparator = new CharacterComparator();
+            } else if (fieldType == int.class) {
+                this.comparator =  new IntegerComparator();
+            } else if (fieldType == String.class) {
+                this.comparator = new StringComparator();
+            }
+        }
     }
 
     // Record fields will exist for each field nested or atomic.
     // Field Readers otoh will only exist for atomic fields.
-    RecordField(Class schema, String fieldName, String fullyQualifiedFieldName,
+    RecordField(Class schema, String fieldName, String fullyQualifiedName,
                 int maxRepetitionLevel, int definitionLevel,
                 int fullDefinitionLevel, boolean isRepeated) {
         Field[] fields = schema.getFields();
-        this.fullyQualifiedFieldName = fullyQualifiedFieldName;
+        this.fullyQualifiedName = fullyQualifiedName;
         this.fieldName = fieldName;
         this.maxRepetitionLevel = maxRepetitionLevel;
         // Add field reader for nested records as well.
         this.fieldReader = new FieldReader(this, fieldName,
-                fullyQualifiedFieldName, fieldType, definitionLevel,
+                fullyQualifiedName, fieldType, definitionLevel,
                 fullDefinitionLevel,/*atomic=*/false, /*optional=*/false,
                 isRepeated);
         int childFullDefinitionLevel = fullDefinitionLevel+1;
         for (Field field: fields) {
             Class fieldType = field.getType();
             String childFieldName = field.getName();
-            String childFullyQualifiedFieldName = String.format("%s-%s",
-                    fullyQualifiedFieldName, childFieldName);
+            String childfullyQualifiedName =
+                    Utils.constructFullyQualifiedChildFieldName(
+                            fullyQualifiedName, childFieldName);
             RecordField childRecordField;
             if (Utils.isTypeAtomic(fieldType)) {
                 childRecordField = new RecordField(childFieldName,
-                        childFullyQualifiedFieldName, fieldType,
+                        childfullyQualifiedName, fieldType,
                         maxRepetitionLevel, definitionLevel,
                         childFullDefinitionLevel,/*atomic=*/true, /*optional
                         =*/false, /*repeated=*/false);
@@ -68,7 +108,7 @@ public class RecordField {
             } else if (Utils.isTypeOptional(fieldType)) {
                 // We only support optional integers at this moment
                 childRecordField = new RecordField(childFieldName,
-                        childFullyQualifiedFieldName, int.class,
+                        childfullyQualifiedName, int.class,
                         maxRepetitionLevel, definitionLevel+1,
                         childFullDefinitionLevel,/*atomic=*/true,
                         /*optional=*/true, /*repeated=*/false);
@@ -78,7 +118,7 @@ public class RecordField {
                 // We increment the repetition level.
                 if (Utils.isTypeAtomic(fieldType.componentType())) {
                     childRecordField = new RecordField(childFieldName,
-                            childFullyQualifiedFieldName, fieldType.componentType(),
+                            childfullyQualifiedName, fieldType.componentType(),
                             maxRepetitionLevel+1, definitionLevel+1,
                             childFullDefinitionLevel, /*atomic=*/true,
                             /*optional=*/false, /*repeated=*/true);
@@ -89,25 +129,29 @@ public class RecordField {
                     childRecordField =
                             new RecordField(fieldType.componentType(),
                             childFieldName,
-                            childFullyQualifiedFieldName, maxRepetitionLevel+1,
+                            childfullyQualifiedName, maxRepetitionLevel+1,
                             definitionLevel, childFullDefinitionLevel,
                                     /*repeated=*/true);
                 }
             } else {
                 // this is a simple nested field.
                 childRecordField = new RecordField(fieldType, childFieldName,
-                        childFullyQualifiedFieldName, maxRepetitionLevel,
+                        childfullyQualifiedName, maxRepetitionLevel,
                         definitionLevel, childFullDefinitionLevel, /*repeated
                         =*/false);
             }
             subRecordFieldsMap.put(childFieldName, childRecordField);
         }
     }
-
+    
     String getFieldName() {
         return fieldName;
     }
 
+    String getFullyQualifiedName() {
+        return fullyQualifiedName;
+    }
+    
     // This should be setup by the main routines.
     static void setRootRecordField(RecordField rootRecordField) {
         RecordField.rootRecordField = rootRecordField;
@@ -192,5 +236,18 @@ public class RecordField {
 
     List<RecordField> getLeafFields() {
         return leafFields;
+    }
+
+    static RecordField getRecordField(String fullyQualifiedName) {
+        String[] subFields = fullyQualifiedName.split(fieldSeperator);
+        RecordField current = getRootRecordField();
+        for (String subField: subFields) {
+            current = current.subRecordFieldsMap.get(subField);
+        }
+        return current;
+    }
+
+    static int getRepetitionLevel(String fullyQualifiedName) {
+        return getRecordField(fullyQualifiedName).getMaxRepetitionLevel();
     }
 }

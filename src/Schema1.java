@@ -2,7 +2,7 @@ import java.util.Optional;
 
 public class Schema1 {
     public char s1Field1;
-    public int s1field2;
+    public int s1Field2;
     public Schema2 s1Field3;
     public String[] s1Field4;
     public Optional<Integer> s1Field5;

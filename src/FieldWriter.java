@@ -47,7 +47,7 @@ public class FieldWriter {
     Class type;
     Column column;
     String fieldName;
-    String fullyQualifiedFieldName;
+    String fullyQualifiedName;
     int definitionLevel;
     int depth; // number of optionals, repeateds in the path to this field.
 
@@ -56,18 +56,19 @@ public class FieldWriter {
     // entities. but before that less understand how this lazy eval is
     // working as all the field writers are not created right at the start.
     FieldWriter(Class schema, String fieldName,
-                String fullyQualifiedFieldName, int definitionLevel) {
+                String fullyQualifiedName, int definitionLevel) {
         this.atomic = false;
         this.fieldName = fieldName;
-        this.fullyQualifiedFieldName = fullyQualifiedFieldName;
+        this.fullyQualifiedName = fullyQualifiedName;
         this.fieldId = UUID.randomUUID().toString();
         this.type = schema;
         this.definitionLevel = definitionLevel;
         Field[] fields = schema.getFields();
         for (Field field: fields) {
             String childFieldName = field.getName();
-            String childFullyQualifiedFieldName = String.format("%s-%s",
-                    fullyQualifiedFieldName, childFieldName);
+            String childfullyQualifiedName =
+                    Utils.constructFullyQualifiedChildFieldName(
+                            fullyQualifiedName, childFieldName);
             Class childType = field.getType();
             FieldWriter childFieldWriter;
             // primitive types
@@ -80,7 +81,7 @@ public class FieldWriter {
             }
             if (Utils.isTypeAtomic(childType) || Utils.isTypeOptional(childType)) {
                 childFieldWriter = new FieldWriter(childFieldName,
-                        childFullyQualifiedFieldName,
+                        childfullyQualifiedName,
                         childDefinitionLevel);
                 // optionals currently are for atomics only.
                 if (Utils.isTypeOptional(childType)) {
@@ -94,12 +95,12 @@ public class FieldWriter {
                 if (childFieldWriter == null) {
                     if (Utils.isTypeAtomic(childType.componentType())) {
                         childFieldWriter = new FieldWriter(childFieldName,
-                                childFullyQualifiedFieldName,
+                                childfullyQualifiedName,
                                 childDefinitionLevel);
                         childFieldWriter.atomic = true;
                     } else {
                         childFieldWriter = new FieldWriter(childType.componentType(),
-                                childFieldName, childFullyQualifiedFieldName,
+                                childFieldName, childfullyQualifiedName,
                                 childDefinitionLevel);
                     }
                     childFieldWriter.repeated = true;
@@ -109,18 +110,18 @@ public class FieldWriter {
                 // This is a nested type.
                 // we will add support for repeated and optional types.
                 childFieldWriter = new FieldWriter(childType,
-                        childFieldName, childFullyQualifiedFieldName,
+                        childFieldName, childfullyQualifiedName,
                         childDefinitionLevel);
             }
             childFieldWriters.put(childFieldName, childFieldWriter);
         }
     }
 
-    FieldWriter(String fieldName, String fullyQualifiedFieldName,
+    FieldWriter(String fieldName, String fullyQualifiedName,
                 int definitionLevel) {
-        this.column = new Column(fullyQualifiedFieldName);
+        this.column = new Column(fullyQualifiedName);
         this.fieldName = fieldName;
-        this.fullyQualifiedFieldName = fullyQualifiedFieldName;
+        this.fullyQualifiedName = fullyQualifiedName;
         this.definitionLevel = definitionLevel;
         this.fieldId = UUID.randomUUID().toString();
     }
@@ -172,8 +173,6 @@ public class FieldWriter {
     }
 
     void flush() throws Exception {
-//        System.out.println(String.format("FieldWriter for %s and levels %s",
-//                fieldName, repetitionDefinitionLevels.size()));
         if (isAtomic()) {
             Properties properties = System.getProperties();
             ColumnSerializer.storeColumnContents(column,
