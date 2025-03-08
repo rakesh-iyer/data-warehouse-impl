@@ -272,8 +272,38 @@ public class DwHouse {
         }
     }
 
+    void testParquetLikeColumnar() {
+        try {
+            FileMetadata fileMetadata = new FileMetadata("filemetadata.file",
+                    Schema1.class);
+            char[] chars = {'a', 'd', 's'};
+            // TBA:: support for repeated values is to be added.
+            String[] strings = {"abcd", "xyzw", "estad"};
+            Schema1.Schema2 subRecord = new Schema1.Schema2('b', chars);
+            Schema1.Schema2[] subRecords ={subRecord, subRecord, subRecord};
+            char c = 'a';
+            int j = 0;
+            for (int i = 0; i < 10001; i++) {
+                Schema1 row = new Schema1(c++, j++, subRecord, strings,
+                        Optional.of(200), subRecords);
+                fileMetadata.addRow(row, Schema1.class);
+            }
+            fileMetadata.write();
+            // select * from table where s1Field1 in range {'d', 'f'}
+            // This is an unsorted search, so all column stats are looked at.
+            // However only pages that contain the range will be read.
+            String columnName = "s1Field1";
+            List<Object> values = fileMetadata.findValues(columnName, 'd', 'f');
+            for (Object value: values) {
+                System.out.println(value);
+            }
+        } catch (Exception e) {
+            System.out.println(e);
+        }
+    }
+
     public static void main(String[] args) {
         DwHouse dwHouse = new DwHouse();
-        dwHouse.test8();
+        dwHouse.testParquetLikeColumnar();
     }
 }

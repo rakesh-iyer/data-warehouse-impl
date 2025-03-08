@@ -1,3 +1,7 @@
+import org.apache.commons.lang3.builder.ReflectionToStringBuilder;
+import org.apache.commons.lang3.builder.ToStringStyle;
+
+import java.nio.ByteBuffer;
 import java.util.Optional;
 
 public class Utils {
@@ -13,8 +17,12 @@ public class Utils {
         return type.isArray();
     }
 
+    static boolean isTypeRepeatedAtomic(Class type) {
+        return type.isArray() && isTypeAtomic(type.componentType());
+    }
+
     static boolean isTypeNested(Class type) {
-        return !(isTypeOptional(type) || isTypeAtomic(type) || isTypeRepeated(type));
+        return !(isTypeOptional(type) || isTypeAtomic(type) || isTypeRepeatedAtomic(type));
     }
 
     static Character parseCharacter(String input) throws Exception {
@@ -33,5 +41,21 @@ public class Utils {
                     "%s-%s",
                     fullyQualifiedName, childFieldName);
         }
+    }
+
+    static byte[] getBytes(ByteBuffer byteBuffer) {
+        byte[] serializedData = new byte[byteBuffer.position()];
+        byteBuffer.flip();
+        byteBuffer.get(serializedData);
+        return serializedData;
+    }
+
+    static void printObject(Object object) {
+        System.out.println(ReflectionToStringBuilder.toString(object,
+                ToStringStyle.MULTI_LINE_STYLE));
+    }
+
+    static ByteBuffer getSmallByteBuffer() {
+        return ByteBuffer.allocate(100);
     }
 }
